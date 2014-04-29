@@ -243,24 +243,12 @@ class MageServlet extends HttpServlet
      */
     public function doGet(HttpServletRequest $servletRequest, HttpServletResponse $servletResponse)
     {
-    
-        // try to locate the file
-        $fileInfo = $this->getLocator()->locate($servletRequest);
-    
-        // initialize the globals $_SERVER, $_REQUEST, $_POST, $_GET, $_COOKIE, $_FILES and set the headers
+        // load \Mage
+        $this->load();
+        // init globals
         $this->initGlobals($servletRequest);
-    
-        // add this header to prevent .php request to be cached
-        $servletResponse->addHeader(HttpProtocol::HEADER_EXPIRES, '19 Nov 1981 08:52:00 GMT');
-    
-        // start output buffering
-        ob_start();
-    
-        // load the file
-        require $fileInfo->getPathname();
-    
-        // store the file's contents in the response
-        $servletResponse->appendBodyStream(ob_get_clean());
+        // run \Mage and set content
+        $servletResponse->appendBodyStream($this->run($servletRequest));
     }
     
     /**
