@@ -319,7 +319,7 @@ class MageServlet extends HttpServlet
         }
 
         // initialize the server variables
-        $this->serverVars['SCRIPT_FILENAME'] = $servletRequest->getServerVar('DOCUMENT_ROOT') . $directoryIndex;
+        $this->serverVars['SCRIPT_FILENAME'] = $servletRequest->getServerVar('DOCUMENT_ROOT') . DIRECTORY_SEPARATOR . $directoryIndex;
         $this->serverVars['SCRIPT_NAME'] = $directoryIndex;
         $this->serverVars['PHP_SELF'] = $directoryIndex;
 
