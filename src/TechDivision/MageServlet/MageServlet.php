@@ -313,8 +313,6 @@ class MageServlet extends HttpServlet
         }
 
         // initialize the server variables
-        $this->serverVars['SCRIPT_FILENAME'] = $servletRequest->getServerVar('DOCUMENT_ROOT') . DIRECTORY_SEPARATOR . $scriptName;
-        $this->serverVars['SCRIPT_NAME'] = $scriptName;
         $this->serverVars['PHP_SELF'] = $scriptName;
 
         // ATTENTION: This is necessary because of a Magento bug!!!!
