@@ -66,7 +66,6 @@ class MageServlet extends HttpServlet
     public function init(ServletConfig $config)
     {
         parent::init($config);
-        $this->locator = new PhpResourceLocator($this);
         $this->webappPath = $this->getServletConfig()->getWebappPath();
     }
 
@@ -288,7 +287,6 @@ class MageServlet extends HttpServlet
      * @param \TechDivision\ServletContainer\Http\ServletRequest  $servletRequest  The request instance
      * @param \TechDivision\ServletContainer\Http\ServletResponse $servletResponse The response instance
      *
-     * @throws \TechDivision\ServletContainer\Exceptions\PermissionDeniedException Is thrown if the request tries to execute a PHP file
      * @return void
      */
     public function doPost(HttpServletRequest $servletRequest, HttpServletResponse $servletResponse)
@@ -306,22 +304,18 @@ class MageServlet extends HttpServlet
     protected function prepareGlobals(HttpServletRequest $servletRequest)
     {
 
-        // check if a XHttpRequest has to be handled
-        if (($xRequestedWith = $servletRequest->getHeader(HttpProtocol::HEADER_X_REQUESTED_WITH)) != null) {
-            $servletRequest->setServerVar('HTTP_X_REQUESTED_WITH', $xRequestedWith);
-        }
+        // load the requested script name
+        $scriptName = basename($servletRequest->getServerVar('SCRIPT_NAME'));
 
         // if the application has not been called over a vhost configuration append application folder name
-        if ($servletRequest->getContext()->isVhostOf($servletRequest->getServerName()) === true) {
-            $directoryIndex = 'index.do';
-        } else {
-            $directoryIndex = $servletRequest->getContextPath() . DIRECTORY_SEPARATOR . 'index.do';
+        if ($servletRequest->getContext()->isVhostOf($servletRequest->getServerName()) === false) {
+            $scriptName = $servletRequest->getContextPath() . DIRECTORY_SEPARATOR . $scriptName;
         }
 
         // initialize the server variables
-        $this->serverVars['SCRIPT_FILENAME'] = $servletRequest->getServerVar('DOCUMENT_ROOT') . DIRECTORY_SEPARATOR . $directoryIndex;
-        $this->serverVars['SCRIPT_NAME'] = $directoryIndex;
-        $this->serverVars['PHP_SELF'] = $directoryIndex;
+        $this->serverVars['SCRIPT_FILENAME'] = $servletRequest->getServerVar('DOCUMENT_ROOT') . DIRECTORY_SEPARATOR . $scriptName;
+        $this->serverVars['SCRIPT_NAME'] = $scriptName;
+        $this->serverVars['PHP_SELF'] = $scriptName;
 
         // ATTENTION: This is necessary because of a Magento bug!!!!
         $this->serverVars['SERVER_PORT'] = null;
