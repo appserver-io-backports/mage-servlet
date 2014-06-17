@@ -156,9 +156,9 @@ class MageServlet extends HttpServlet
     protected function initCookieGlobals(HttpServletRequest $servletRequest)
     {
         $cookie = array();
-        foreach (explode('; ', $servletRequest->getHeader(HttpProtocol::HEADER_COOKIE)) as $cookieLine) {
+        foreach (explode(';', $servletRequest->getHeader(HttpProtocol::HEADER_COOKIE)) as $cookieLine) {
             list ($key, $value) = explode('=', $cookieLine);
-            $cookie[$key] = $value;
+            $cookie[trim($key)] = trim($value);
         }
         return $cookie;
     }
@@ -274,6 +274,8 @@ class MageServlet extends HttpServlet
                 if ($key === HttpProtocol::HEADER_STATUS) {
                     // set status by Status header value which is only used by fcgi sapi's normally
                     $servletResponse->setStatus($value);
+                } elseif ($key === HttpProtocol::HEADER_SET_COOKIE) {
+                    $servletResponse->addHeader($key, $value, true);
                 } else {
                     $servletResponse->addHeader($key, $value);
                 }
