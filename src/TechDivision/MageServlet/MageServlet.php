@@ -378,6 +378,7 @@ class MageServlet extends HttpServlet
 
             // reset and run Magento
             \Mage::reset();
+            \Mage::register('ServletRequest', $servletRequest);
             \Mage::run();
 
             // write the session back after the request
