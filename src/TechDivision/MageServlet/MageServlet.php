@@ -58,9 +58,9 @@ class MageServlet extends HttpServlet
     /**
      * Initializes the servlet with the passed configuration.
      *
-     * @param \TechDivision\ServletContainer\Interfaces\ServletConfig $config The configuration to initialize the servlet with
+     * @param \TechDivision\Servlet\ServletConfig $config The configuration to initialize the servlet with
      *
-     * @throws \TechDivision\ServletContainer\Exceptions\ServletException Is thrown if the configuration has errors
+     * @throws \TechDivision\Servlet\ServletException Is thrown if the configuration has errors
      * @return void
      */
     public function init(ServletConfig $config)
@@ -82,7 +82,7 @@ class MageServlet extends HttpServlet
     /**
      * Returns the array with the $_FILES vars.
      *
-     * @param \TechDivision\ServletContainer\Http\ServletRequest $servletRequest The request instance
+     * @param \TechDivision\Servlet\Http\HttpServletRequest $servletRequest The request instance
      *
      * @return array The $_FILES vars
      */
@@ -149,7 +149,7 @@ class MageServlet extends HttpServlet
     /**
      * Returns the array with the $_COOKIE vars.
      *
-     * @param \TechDivision\ServletContainer\Http\ServletRequest $servletRequest The request instance
+     * @param \TechDivision\Servlet\Http\HttpServletRequest $servletRequest The request instance
      *
      * @return array The $_COOKIE vars
      */
@@ -166,7 +166,7 @@ class MageServlet extends HttpServlet
     /**
      * Returns the array with the $_REQUEST vars.
      *
-     * @param \TechDivision\ServletContainer\Http\ServletRequest $servletRequest The request instance
+     * @param \TechDivision\Servlet\Http\HttpServletRequest $servletRequest The request instance
      *
      * @return array The $_REQUEST vars
      */
@@ -178,7 +178,7 @@ class MageServlet extends HttpServlet
     /**
      * Returns the array with the $_POST vars.
      *
-     * @param \TechDivision\ServletContainer\Http\ServletRequest $servletRequest The request instance
+     * @param \TechDivision\Servlet\Http\HttpServletRequest $servletRequest The request instance
      *
      * @return array The $_POST vars
      */
@@ -194,7 +194,7 @@ class MageServlet extends HttpServlet
     /**
      * Returns the array with the $_GET vars.
      *
-     * @param \TechDivision\ServletContainer\Http\ServletRequest $servletRequest The request instance
+     * @param \TechDivision\Servlet\Http\HttpServletRequest $servletRequest The request instance
      *
      * @return array The $_GET vars
      */
@@ -210,10 +210,20 @@ class MageServlet extends HttpServlet
     }
 
     /**
+     * Used to init the global session array $_SESSION by setting it to NULL
+     *
+     * @return null
+     */
+    protected function initSessionGlobals()
+    {
+        return null;
+    }
+
+    /**
      * Initialize the PHP globals necessary for legacy mode and backward compatibility
      * for standard applications.
      *
-     * @param \TechDivision\ServletContainer\Http\ServletRequest $servletRequest The request instance
+     * @param \TechDivision\Servlet\Http\HttpServletRequest $servletRequest The request instance
      *
      * @return void
      */
@@ -230,13 +240,14 @@ class MageServlet extends HttpServlet
         $_GET = $this->initGetGlobals($servletRequest);
         $_COOKIE = $this->initCookieGlobals($servletRequest);
         $_FILES = $this->initFileGlobals($servletRequest);
+        $_SESSION = $this->initSessionGlobals();
     }
 
     /**
      * Tries to load the requested file and adds the content to the response.
      *
-     * @param \TechDivision\ServletContainer\Http\ServletRequest  $servletRequest  The request instance
-     * @param \TechDivision\ServletContainer\Http\ServletResponse $servletResponse The response instance
+     * @param \TechDivision\Servlet\Http\HttpServletRequest  $servletRequest  The request instance
+     * @param \TechDivision\Servlet\Http\HttpServletResponse $servletResponse The response instance
      *
      * @return void
      */
@@ -273,7 +284,7 @@ class MageServlet extends HttpServlet
                 // if no status, add the header normally
                 if ($key === HttpProtocol::HEADER_STATUS) {
                     // set status by Status header value which is only used by fcgi sapi's normally
-                    $servletResponse->setStatus($value);
+                    $servletResponse->setStatusCode($value);
                 } elseif ($key === HttpProtocol::HEADER_SET_COOKIE) {
                     $servletResponse->addHeader($key, $value, true);
                 } else {
@@ -286,8 +297,8 @@ class MageServlet extends HttpServlet
     /**
      * Tries to load the requested file and adds the content to the response.
      *
-     * @param \TechDivision\ServletContainer\Http\ServletRequest  $servletRequest  The request instance
-     * @param \TechDivision\ServletContainer\Http\ServletResponse $servletResponse The response instance
+     * @param \TechDivision\Servlet\Http\HttpServletRequest  $servletRequest  The request instance
+     * @param \TechDivision\Servlet\Http\HttpServletResponse $servletResponse The response instance
      *
      * @return void
      */
@@ -299,7 +310,7 @@ class MageServlet extends HttpServlet
     /**
      * Prepares the passed request instance for generating the globals.
      *
-     * @param \TechDivision\ServletContainer\Http\ServletRequest $servletRequest The request instance
+     * @param \TechDivision\Servlet\Http\HttpServletRequest $servletRequest The request instance
      *
      * @return void
      */
@@ -324,7 +335,7 @@ class MageServlet extends HttpServlet
     /**
      * Returns the array with the $_SERVER vars.
      *
-     * @param \TechDivision\ServletContainer\Http\ServletRequest $servletRequest The request instance
+     * @param \TechDivision\Servlet\Http\HttpServletRequest $servletRequest The request instance
      *
      * @return array The $_SERVER vars
      */
@@ -346,7 +357,7 @@ class MageServlet extends HttpServlet
     /**
      * Runs the WebApplication
      *
-     * @param \TechDivision\ServletContainer\Http\ServletRequest $servletRequest The request instance
+     * @param \TechDivision\Servlet\Http\HttpServletRequest $servletRequest The request instance
      *
      * @return string The web applications content
      */
@@ -383,6 +394,9 @@ class MageServlet extends HttpServlet
 
             // write the session back after the request
             session_write_close();
+
+            // We need to init the session anew, so PHP session handling will work like it would in a clean environment
+            appserver_session_init();
 
             // grab the contents generated by Magento
             $content = ob_get_clean();
