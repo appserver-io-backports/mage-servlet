@@ -2,11 +2,15 @@
 
 class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
 {
+
     const VALIDATOR_KEY                         = '_session_validator_data';
     const VALIDATOR_HTTP_USER_AGENT_KEY         = 'http_user_agent';
     const VALIDATOR_HTTP_X_FORVARDED_FOR_KEY    = 'http_x_forwarded_for';
     const VALIDATOR_HTTP_VIA_KEY                = 'http_via';
     const VALIDATOR_REMOTE_ADDR_KEY             = 'remote_addr';
+
+    const SERVLET_REQUEST = 'Mage_Core_Model_Session_Abstract_Varien.Servlet_Request';
+    const SESSION = 'Mage_Core_Model_Session_Abstract_Varien.Session';
 
     /**
      * Configure and start session
@@ -14,38 +18,14 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
      * @param string $sessionName
      * @return Mage_Core_Model_Session_Abstract_Varien
      */
-    public function start($sessionName=null)
+    public function start($sessionName = null)
     {
-        if (isset($_SESSION) && !$this->getSkipEmptySessionCheck()) {
+
+        if ($_SESSION != null && !$this->getSkipEmptySessionCheck()) {
             return $this;
         }
 
-        // getSessionSaveMethod has to return correct version of handler in any case
-        $moduleName = $this->getSessionSaveMethod();
-        switch ($moduleName) {
-            /**
-             * backward compatibility with db argument (option is @deprecated after 1.12.0.2)
-             */
-            case 'db':
-                $moduleName = 'user';
-                /* @var $sessionResource Mage_Core_Model_Resource_Session */
-                $sessionResource = Mage::getResourceSingleton('core/session');
-                $sessionResource->setSaveHandler();
-                break;
-            case 'user':
-                // getSessionSavePath represents static function for custom session handler setup
-                call_user_func($this->getSessionSavePath());
-                break;
-            case 'files':
-                //don't change path if it's not writable
-                if (!is_writable($this->getSessionSavePath())) {
-                    break;
-                }
-            default:
-                session_save_path($this->getSessionSavePath());
-                break;
-        }
-        session_module_name($moduleName);
+        Varien_Profiler::start(__METHOD__.'/start');
 
         $cookie = $this->getCookie();
         if (Mage::app()->getStore()->isAdmin()) {
@@ -82,29 +62,40 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
             $cookieParams['domain'] = $cookie->getDomain();
         }
 
-        call_user_func_array('session_set_cookie_params', $cookieParams);
+        Mage::registry(self::SERVLET_REQUEST)->setRequestedSessionName($sessionName);
 
-        if (!empty($sessionName)) {
-            $this->setSessionName($sessionName);
+        $session = Mage::registry(self::SERVLET_REQUEST)->getSession(true);
+
+        $settings = Mage::registry(self::SERVLET_REQUEST)->getContext()->getSessionManager()->getSettings();
+        $settings->setSessionCookieLifetime($cookieParams['lifetime']);
+        $settings->setSessionCookiePath($cookieParams['path']);
+        $settings->setSessionCookieDomain($cookieParams['domain']);
+        $settings->setSessionCookieSecure($cookieParams['secure']);
+        $settings->setSessioncookieHttpOnly($cookieParams['httponly']);
+
+        $session->start();
+
+        $_SESSION = array();
+        foreach ($session->getSession()->data as $namespace => $data) {
+            if ($namespace !== 'identifier') {
+                $_SESSION[$namespace] = $data;
+            }
         }
 
-        // potential custom logic for session id (ex. switching between hosts)
-        $this->setSessionId();
+        Mage::register(self::SESSION, $session);
 
-        Varien_Profiler::start(__METHOD__.'/start');
-        $sessionCacheLimiter = Mage::getConfig()->getNode('global/session_cache_limiter');
-        if ($sessionCacheLimiter) {
-            session_cache_limiter((string)$sessionCacheLimiter);
-        }
+        /*
+         * Renew cookie expiration time if session id did not change
+         *
+         * @TODO To implement
+         *
+         * $cookie = $servletRequest->getCookie($sessionName);
+         * if ($cookie->getValue() == $this->getSessionId()) {
+         *    $cookie->renew($sessionName);
+         * }
+         *
+         */
 
-        session_start();
-
-        /**
-        * Renew cookie expiration time if session id did not change
-        */
-        if ($cookie->get(session_name()) == $this->getSessionId()) {
-            $cookie->renew(session_name());
-        }
         Varien_Profiler::stop(__METHOD__.'/start');
 
         return $this;
@@ -137,30 +128,13 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
      * @param string $sessionName
      * @return Mage_Core_Model_Session_Abstract_Varien
      */
-    public function init($namespace, $sessionName=null)
+    public function init($namespace, $sessionName = null)
     {
 
-        $servletRequest = Mage::registry('ServletRequest');
-
-        error_log("Found namespace: $namespace");
-        error_log("Found session name: $sessionName"); // this is the cookie name
-
-        $servletRequest->setRequestedSessionName($sessionName);
-        $session = $servletRequest->getSession(true);
-        $session->start();
-
-        if ($session->hasKey($namespace) === false) {
-            $session->putData($namespace, array());
-        }
-
-        $this->_data = $session;
-
-        return $this;
-
-        /*
         if (!isset($_SESSION)) {
             $this->start($sessionName);
         }
+
         if (!isset($_SESSION[$namespace])) {
             $_SESSION[$namespace] = array();
         }
@@ -171,56 +145,6 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
         $this->revalidateCookie();
 
         return $this;
-        */
-    }
-
-    /**
-     * @override Varien_Object::_getData($key)
-     */
-    protected function _getData($key)
-    {
-        if ($this->_data->hasKey($key)) {
-            return $this->_data->getData($key);
-        }
-    }
-
-    /**
-     * @override Varien_Object::setData($key, $value=null)
-     */
-    public function setData($key, $value=null)
-    {
-        $this->_data->putData($key, $value);
-    }
-
-    /**
-     * @override Varien_Object::__call($method, $args)
-     */
-    public function __call($method, $args)
-    {
-
-        switch (substr($method, 0, 3)) {
-
-            case 'get' :
-                $key = $this->_underscore(substr($method,3));
-                $data = $this->_data->getData($key, isset($args[0]) ? $args[0] : null);
-                return $data;
-
-            case 'set' :
-                $key = $this->_underscore(substr($method,3));
-                $result = $this->_data->putData($key, isset($args[0]) ? $args[0] : null);
-                return $result;
-
-            case 'uns' :
-                $key = $this->_underscore(substr($method,3));
-                $result = $this->setData($key, null);
-                return $result;
-
-            case 'has' :
-                $key = $this->_underscore(substr($method,3));
-                return $this->_data->hasKey($key);
-        }
-
-        throw new Varien_Exception("Invalid method ".get_class($this)."::".$method."(".print_r($args,1).")");
     }
 
     /**
@@ -232,20 +156,11 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
      */
     public function getData($key='', $clear = false)
     {
-
-        $data = $this->_data->getData($key);
-        if ($clear && $data) {
-            $this->_data->putData($key, null);
-        }
-        return $data;
-
-        /*
         $data = parent::getData($key);
         if ($clear && isset($this->_data[$key])) {
             unset($this->_data[$key]);
         }
         return $data;
-        */
     }
 
     /**
@@ -255,7 +170,7 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
      */
     public function getSessionId()
     {
-        return session_id();
+        return Mage::registry(self::SESSION)->getId();
     }
 
     /**
@@ -264,11 +179,8 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
      * @param string $id
      * @return Mage_Core_Model_Session_Abstract_Varien
      */
-    public function setSessionId($id=null)
+    public function setSessionId($id = null)
     {
-        if (!is_null($id) && preg_match('#^[0-9a-zA-Z,-]+$#', $id)) {
-            session_id($id);
-        }
         return $this;
     }
 
@@ -279,7 +191,7 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
      */
     public function getSessionName()
     {
-        return session_name();
+        return Mage::registry(self::SESSION)->getName();
     }
 
     /**
@@ -288,9 +200,8 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
      * @param string $name
      * @return Mage_Core_Model_Session_Abstract_Varien
      */
-    public function setSessionName($name)
+    public function setSessionName($sessionName)
     {
-        session_name($name);
         return $this;
     }
 
@@ -396,15 +307,13 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
     {
         if (!isset($this->_data[self::VALIDATOR_KEY])) {
             $this->_data[self::VALIDATOR_KEY] = $this->getValidatorData();
-        }
-        else {
+        } else {
             if (!$this->_validate()) {
-                $this->getCookie()->delete(session_name());
+                Mage::registry(self::SESSION)->destroy('Found invalid session data');
                 // throw core session exception
                 throw new Mage_Core_Model_Session_Exception('');
             }
         }
-
         return $this;
     }
 
@@ -415,6 +324,7 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
      */
     protected function _validate()
     {
+
         $sessionData = $this->_data[self::VALIDATOR_KEY];
         $validatorData = $this->getValidatorData();
 
@@ -488,7 +398,7 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
      */
     public function regenerateSessionId()
     {
-        session_regenerate_id(true);
+        Mage::registry(self::SESSION)->renewId();
         return $this;
     }
 }
