@@ -273,7 +273,7 @@ class MageServlet extends HttpServlet
                 // if no status, add the header normally
                 if ($key === HttpProtocol::HEADER_STATUS) {
                     // set status by Status header value which is only used by fcgi sapi's normally
-                    $servletResponse->setStatus($value);
+                    $servletResponse->setStatusCode($value);
                 } elseif ($key === HttpProtocol::HEADER_SET_COOKIE) {
                     $servletResponse->addHeader($key, $value, true);
                 } else {
