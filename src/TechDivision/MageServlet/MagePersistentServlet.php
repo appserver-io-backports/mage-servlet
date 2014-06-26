@@ -141,9 +141,26 @@ class MagePersistentServlet extends MageServlet
 
         if ($this->app == null) {
 
-            error_log("Now reinitialize Magento instance");
-
             require_once $this->getServletConfig()->getWebappPath() . '/app/Mage.php';
+
+            // register the Magento autoloader as FIRST autoloader
+            spl_autoload_register(array(new \Varien_Autoload(), 'autoload'), true, true);
+
+            // Varien_Profiler::enable();
+            if (isset($_SERVER['MAGE_IS_DEVELOPER_MODE'])) {
+                \Mage::setIsDeveloperMode(true);
+            }
+
+            ini_set('display_errors', 1);
+            umask(0);
+
+            // store or website code
+            $mageRunCode = isset($_SERVER['MAGE_RUN_CODE']) ? $_SERVER['MAGE_RUN_CODE'] : '';
+
+            // run store or run website
+            $mageRunType = isset($_SERVER['MAGE_RUN_TYPE']) ? $_SERVER['MAGE_RUN_TYPE'] : 'store';
+
+            error_log("Now reinitialize Magento instance");
 
             $this->app = \Mage::app();
 
@@ -163,27 +180,6 @@ class MagePersistentServlet extends MageServlet
 
         try {
 
-            // register the Magento autoloader as FIRST autoloader
-            spl_autoload_register(array(new \Varien_Autoload(), 'autoload'), true, true);
-
-            // Varien_Profiler::enable();
-            if (isset($_SERVER['MAGE_IS_DEVELOPER_MODE'])) {
-                \Mage::setIsDeveloperMode(true);
-            }
-
-            ini_set('display_errors', 1);
-            umask(0);
-
-            // store or website code
-            $mageRunCode = isset($_SERVER['MAGE_RUN_CODE']) ? $_SERVER['MAGE_RUN_CODE'] : '';
-
-            // run store or run website
-            $mageRunType = isset($_SERVER['MAGE_RUN_TYPE']) ? $_SERVER['MAGE_RUN_TYPE'] : 'store';
-
-            // set headers sent to false and start output caching
-            appserver_set_headers_sent(false);
-            ob_start();
-
             // cleanup mage registry
             foreach ($this->registryCleanKeys as $registryCleanKey) {
                 \Mage::unregister($registryCleanKey);
@@ -191,16 +187,26 @@ class MagePersistentServlet extends MageServlet
 
             error_log("Successfully reset Magento");
 
+            // set headers sent to false and start output caching
+            appserver_set_headers_sent(false);
+            ob_start();
+
             // reset and run Magento
             $appRequest = new \Mage_Core_Controller_Request_Http();
             $appResponse = new \Mage_Core_Controller_Response_Http();
 
             $appRequest->setRequestUri();
 
-            error_log("Set request URI: " . $servletRequest->getUri());
+            error_log("Set request URI: " . $_SERVER['REQUEST_URI']);
 
             $this->app->setRequest($appRequest);
             $this->app->setResponse($appResponse);
+
+            // store or website code
+            $mageRunCode = isset($_SERVER['MAGE_RUN_CODE']) ? $_SERVER['MAGE_RUN_CODE'] : '';
+
+            // run store or run website
+            $mageRunType = isset($_SERVER['MAGE_RUN_TYPE']) ? $_SERVER['MAGE_RUN_TYPE'] : 'store';
 
             $this->app->run(
                 array(
