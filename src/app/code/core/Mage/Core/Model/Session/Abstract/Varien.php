@@ -21,7 +21,7 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
     public function start($sessionName = null)
     {
 
-        if ($_SESSION != null && !$this->getSkipEmptySessionCheck()) {
+        if (isset($_SESSION) && !$this->getSkipEmptySessionCheck()) {
             return $this;
         }
 
@@ -62,39 +62,44 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
             $cookieParams['domain'] = $cookie->getDomain();
         }
 
-        Mage::registry(self::SERVLET_REQUEST)->setRequestedSessionName($sessionName);
+        $servletRequest = Mage::registry(self::SERVLET_REQUEST);
 
-        $session = Mage::registry(self::SERVLET_REQUEST)->getSession(true);
-
-        $settings = Mage::registry(self::SERVLET_REQUEST)->getContext()->getSessionManager()->getSettings();
+        $settings = $servletRequest->getContext()->getSessionManager()->getSettings();
         $settings->setSessionCookieLifetime($cookieParams['lifetime']);
         $settings->setSessionCookiePath($cookieParams['path']);
         $settings->setSessionCookieDomain($cookieParams['domain']);
         $settings->setSessionCookieSecure($cookieParams['secure']);
         $settings->setSessioncookieHttpOnly($cookieParams['httponly']);
 
+        error_log(var_export($cookieParams, true));
+
+        $servletRequest->setRequestedSessionName($sessionName);
+        $session = $servletRequest->getSession(true);
         $session->start();
 
         $_SESSION = array();
         foreach ($session->getSession()->data as $namespace => $data) {
             if ($namespace !== 'identifier') {
+                error_log("Now re-attach data for namespace $namespace: " . PHP_EOL . var_export($data, true));
                 $_SESSION[$namespace] = $data;
             }
         }
 
         Mage::register(self::SESSION, $session);
 
+        error_log("Successfully started appserver.io session with ID: " . $session->getId());
+
         /*
          * Renew cookie expiration time if session id did not change
-         *
-         * @TODO To implement
-         *
-         * $cookie = $servletRequest->getCookie($sessionName);
-         * if ($cookie->getValue() == $this->getSessionId()) {
-         *    $cookie->renew($sessionName);
-         * }
-         *
-         */
+        *
+        * @TODO To implement
+        *
+        * $cookie = $servletRequest->getCookie($sessionName);
+        * if ($cookie->getValue() == $this->getSessionId()) {
+        *    $cookie->renew($sessionName);
+        * }
+        *
+        */
 
         Varien_Profiler::stop(__METHOD__.'/start');
 
@@ -329,33 +334,33 @@ class Mage_Core_Model_Session_Abstract_Varien extends Varien_Object
         $validatorData = $this->getValidatorData();
 
         if ($this->useValidateRemoteAddr()
-                && $sessionData[self::VALIDATOR_REMOTE_ADDR_KEY] != $validatorData[self::VALIDATOR_REMOTE_ADDR_KEY]) {
-            return false;
-        }
-        if ($this->useValidateHttpVia()
-                && $sessionData[self::VALIDATOR_HTTP_VIA_KEY] != $validatorData[self::VALIDATOR_HTTP_VIA_KEY]) {
-            return false;
-        }
-
-        $sessionValidateHttpXForwardedForKey = $sessionData[self::VALIDATOR_HTTP_X_FORVARDED_FOR_KEY];
-        $validatorValidateHttpXForwardedForKey = $validatorData[self::VALIDATOR_HTTP_X_FORVARDED_FOR_KEY];
-        if ($this->useValidateHttpXForwardedFor()
-            && $sessionValidateHttpXForwardedForKey != $validatorValidateHttpXForwardedForKey ) {
-            return false;
-        }
-        if ($this->useValidateHttpUserAgent()
-            && $sessionData[self::VALIDATOR_HTTP_USER_AGENT_KEY] != $validatorData[self::VALIDATOR_HTTP_USER_AGENT_KEY]
-        ) {
-            $userAgentValidated = $this->getValidateHttpUserAgentSkip();
-            foreach ($userAgentValidated as $agent) {
-                if (preg_match('/' . $agent . '/iu', $validatorData[self::VALIDATOR_HTTP_USER_AGENT_KEY])) {
-                    return true;
-                }
+            && $sessionData[self::VALIDATOR_REMOTE_ADDR_KEY] != $validatorData[self::VALIDATOR_REMOTE_ADDR_KEY]) {
+                return false;
             }
-            return false;
-        }
+            if ($this->useValidateHttpVia()
+                && $sessionData[self::VALIDATOR_HTTP_VIA_KEY] != $validatorData[self::VALIDATOR_HTTP_VIA_KEY]) {
+                    return false;
+                }
 
-        return true;
+                $sessionValidateHttpXForwardedForKey = $sessionData[self::VALIDATOR_HTTP_X_FORVARDED_FOR_KEY];
+                $validatorValidateHttpXForwardedForKey = $validatorData[self::VALIDATOR_HTTP_X_FORVARDED_FOR_KEY];
+                if ($this->useValidateHttpXForwardedFor()
+                    && $sessionValidateHttpXForwardedForKey != $validatorValidateHttpXForwardedForKey ) {
+                        return false;
+                    }
+                    if ($this->useValidateHttpUserAgent()
+                        && $sessionData[self::VALIDATOR_HTTP_USER_AGENT_KEY] != $validatorData[self::VALIDATOR_HTTP_USER_AGENT_KEY]
+                    ) {
+                        $userAgentValidated = $this->getValidateHttpUserAgentSkip();
+                        foreach ($userAgentValidated as $agent) {
+                            if (preg_match('/' . $agent . '/iu', $validatorData[self::VALIDATOR_HTTP_USER_AGENT_KEY])) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+
+                    return true;
     }
 
     /**
